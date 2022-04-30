@@ -39,7 +39,7 @@
 /**
  * @brief     Number of Test Set
  */
-#define TOTAL_TEST_SIZE 8
+#define TOTAL_TEST_SIZE 10
 
 /**
  * @brief     Calculate Euclidien Distance
@@ -91,7 +91,7 @@ int main(int argc, char *argv[]) {
   int output_idx_list_len = 0;
   float out[TOTAL_LABEL_SIZE][TOTAL_DATA_SIZE][128];
 
-  std::vector<std::string> total_label = {"happy", "sad", "soso"};
+  std::vector<std::string> total_label = {"golden_retriver", "boxer", "doberman"};
 
   const std::vector<std::string> args(argv + 1, argv + argc);
   std::string data_path = args[0];
@@ -160,6 +160,9 @@ int main(int argc, char *argv[]) {
   int wanted_channels = inputDim[0];
   int wanted_height = inputDim[1];
   int wanted_width = inputDim[2];
+  std::cout << wanted_channels << std::endl;
+  std::cout << wanted_height << std::endl;
+  std::cout << wanted_width << std::endl;
 
   for (int k = 0; k < 4; k++)
     output_number_of_pixels *= inputDim[k];
@@ -217,6 +220,8 @@ int main(int argc, char *argv[]) {
   }
 
   float testout[TOTAL_TEST_SIZE][128];
+  // int testset_labels[8] = {0,0, 1, 2, 1, 1, 2, 2};
+  // double result_percentage = 0.0;
 
   for (int i = 0; i < TOTAL_TEST_SIZE; i++) {
     std::string path = data_path;
@@ -257,7 +262,14 @@ int main(int argc, char *argv[]) {
      */
     ret = KNN(out, testout[i]);
     printf("class %d\n", ret);
+
+    // if(ret == testset_labels[i]) {
+    //   result_percentage += 1;
+    // }
   }
+
+  // printf("Result percentage: %f\n", result_percentage);
+
 
   return 0;
 }
