@@ -39,7 +39,7 @@
 /**
  * @brief     Number of Test Set
  */
-#define TOTAL_TEST_SIZE 10
+#define TOTAL_TEST_SIZE 8
 
 /**
  * @brief     Calculate Euclidien Distance
@@ -220,8 +220,8 @@ int main(int argc, char *argv[]) {
   }
 
   float testout[TOTAL_TEST_SIZE][128];
-  // int testset_labels[8] = {0,0, 1, 2, 1, 1, 2, 2};
-  // double result_percentage = 0.0;
+  int testset_labels[8] = {0,0, 1, 2, 1, 1, 2, 2};
+  double result_percentage = 0.0;
 
   for (int i = 0; i < TOTAL_TEST_SIZE; i++) {
     std::string path = data_path;
@@ -263,12 +263,12 @@ int main(int argc, char *argv[]) {
     ret = KNN(out, testout[i]);
     printf("class %d\n", ret);
 
-    // if(ret == testset_labels[i]) {
-    //   result_percentage += 1;
-    // }
+    if(ret == testset_labels[i]) {
+      result_percentage += 1;
+    }
   }
 
-  // printf("Result percentage: %f\n", result_percentage);
+   printf("Result percentage: %f\n", (result_percentage/TOTAL_TEST_SIZE)*100);
 
 
   return 0;
