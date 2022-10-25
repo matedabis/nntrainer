@@ -26,7 +26,6 @@
  */
 
 #if defined(NNSTREAMER_AVAILABLE) && defined(ENABLE_TEST)
-#define APP_VALIDATE
 #endif
 
 #include <iostream>
@@ -40,10 +39,6 @@
 #endif
 #include <nntrainer_internal.h>
 
-#if defined(APP_VALIDATE)
-#include <gtest/gtest.h>
-#endif
-
 #include "bitmap_helpers.h"
 #include <app_context.h>
 #include <nntrainer.h>
@@ -55,7 +50,7 @@
 #define NUM_DATA_PER_LABEL 5
 
 /** Size of each label (number of label categories) */
-#define LABEL_SIZE 3
+#define LABEL_SIZE 4
 
 /** Size of each input */
 #define IMAGE_SIDE 300
@@ -63,16 +58,16 @@
 #define INPUT_SIZE IMAGE_SIDE *IMAGE_SIDE *IMAGE_CHANNELS
 
 /** Number of test data points */
-#define TOTAL_TEST_SIZE 8
+#define TOTAL_TEST_SIZE 10
 
 /** Total number of data points in an epoch */
 #define EPOCH_SIZE LABEL_SIZE *NUM_DATA_PER_LABEL
 
 /** Minimum softmax value threshold to make a confident threshold */
-#define PREDICTION_THRESHOLD 0.9
+#define PREDICTION_THRESHOLD 0.1
 
 /** labels values */
-const char *label_names[LABEL_SIZE] = {"happy", "sad", "soso"};
+const char *label_names[LABEL_SIZE] = {"happy", "sad", "soso", "boxer"};
 
 /** Vectors containing the training data */
 float inputVector[EPOCH_SIZE][INPUT_SIZE];
@@ -80,13 +75,6 @@ float labelVector[EPOCH_SIZE][LABEL_SIZE];
 
 #if defined(NNSTREAMER_AVAILABLE)
 float featureVector[INPUT_SIZE];
-#endif
-
-#if defined(APP_VALIDATE)
-/** Benchmark output values */
-const float test_output_benchmark[TOTAL_TEST_SIZE] = {
-  0.99669778, 0.96033746, 0.99192446, 0.98053128,
-  0.95911789, 0.99331927, 0.55696899, 0.46636438};
 #endif
 
 /** Container to hold the output values when running */
@@ -132,6 +120,7 @@ void loadAllData(const std::string &data_path, float input_data[][INPUT_SIZE],
   for (int i = 0; i < LABEL_SIZE; i++) {
     for (int j = 0; j < NUM_DATA_PER_LABEL; j++) {
       std::string label_file = label_names[i] + std::to_string(j + 1) + ".bmp";
+      std::cout << label_file << std::endl;
       std::string img = data_path + "/" + label_names[i] + "/" + label_file;
 
       int count = i * NUM_DATA_PER_LABEL + j;
@@ -253,7 +242,7 @@ void sink_cb(const ml_tensors_data_h data, const ml_tensors_info_h info,
     return;
 
   for (int i = 0; i < LABEL_SIZE; i++) {
-    if (raw_data[i] > max_val && raw_data[i] > PREDICTION_THRESHOLD) {
+    if (raw_data[i] > max_val) {
       max_val = raw_data[i];
       max_idx = i;
     }
@@ -421,18 +410,6 @@ fail_exit:
 #endif
 }
 
-#if defined(APP_VALIDATE)
-/**
- * @brief  Test to verify that the draw classification app is successful
- * @note Enable this once caching is enabled for backbones and epochs to 1000
- */
-TEST(DrawClassification, matchTestResult) {
-  for (int idx = 0; idx < TOTAL_TEST_SIZE; idx++) {
-    // EXPECT_FLOAT_EQ(test_output_benchmark[idx], test_output[idx]);
-  }
-}
-#endif
-
 /**
  * @brief     create NN
  *            Get Feature from tflite & run foword & back propatation
@@ -472,8 +449,9 @@ int main(int argc, char *argv[]) {
   /** Load input images */
   try {
     loadAllData(data_path, inputVector, labelVector);
-  } catch (...) {
+  } catch (const std::exception &exc) {
     std::cerr << "Failed loading input images." << std::endl;
+    std::cerr << exc.what();
 #if defined(__TIZEN__)
     set_feature_state(NOT_CHECKED_YET);
 #endif
@@ -514,20 +492,6 @@ int main(int argc, char *argv[]) {
   set_feature_state(NOT_CHECKED_YET);
 #endif
 
-#if defined(APP_VALIDATE)
-  try {
-    testing::InitGoogleTest(&argc, argv);
-  } catch (...) {
-    std::cerr << "Error duing InitGoogleTest" << std::endl;
-    return 0;
-  }
-
-  try {
-    status = RUN_ALL_TESTS();
-  } catch (...) {
-    std::cerr << "Error duing RUN_ALL_TSETS()" << std::endl;
-  }
-#endif
 
   // please comment below if you are going to train continuously.
   try {

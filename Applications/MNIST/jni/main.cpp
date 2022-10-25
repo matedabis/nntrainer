@@ -195,12 +195,12 @@ int getSample(float **outVec, float **outLabel, bool *last, void *user_data) {
   return 0;
 }
 
-#if defined(APP_VALIDATE)
-TEST(MNIST_training, verify_accuracy) {
-  EXPECT_FLOAT_EQ(training_loss, 2.5698349);
-  EXPECT_FLOAT_EQ(validation_loss, 2.5551746);
-}
-#endif
+// #if defined(APP_VALIDATE)
+// TEST(MNIST_training, verify_accuracy) {
+//   EXPECT_FLOAT_EQ(training_loss, 2.5698349);
+//   EXPECT_FLOAT_EQ(validation_loss, 2.5551746);
+// }
+// #endif
 
 /**
  * @brief     create model
