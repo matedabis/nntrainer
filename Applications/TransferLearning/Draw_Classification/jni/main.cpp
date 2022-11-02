@@ -26,6 +26,7 @@
  */
 
 #if defined(NNSTREAMER_AVAILABLE) && defined(ENABLE_TEST)
+#define APP_VALIDATE
 #endif
 
 #include <iostream>
@@ -39,6 +40,10 @@
 #endif
 #include <nntrainer_internal.h>
 
+#if defined(APP_VALIDATE)
+#include <gtest/gtest.h>
+#endif
+
 #include "bitmap_helpers.h"
 #include <app_context.h>
 #include <nntrainer.h>
@@ -50,7 +55,7 @@
 #define NUM_DATA_PER_LABEL 5
 
 /** Size of each label (number of label categories) */
-#define LABEL_SIZE 4
+#define LABEL_SIZE 3
 
 /** Size of each input */
 #define IMAGE_SIDE 300
@@ -64,17 +69,27 @@
 #define EPOCH_SIZE LABEL_SIZE *NUM_DATA_PER_LABEL
 
 /** Minimum softmax value threshold to make a confident threshold */
-#define PREDICTION_THRESHOLD 0.1
+#define PREDICTION_THRESHOLD 0.0
 
 /** labels values */
-const char *label_names[LABEL_SIZE] = {"happy", "sad", "soso", "boxer"};
+const char *label_names[LABEL_SIZE] = {"doberman" ,"golden_retriver", "boxer"};
 
 /** Vectors containing the training data */
 float inputVector[EPOCH_SIZE][INPUT_SIZE];
 float labelVector[EPOCH_SIZE][LABEL_SIZE];
 
+std::string results[TOTAL_TEST_SIZE];
+std::string expected_test_results[TOTAL_TEST_SIZE] = {"doberman", "doberman", "doberman", "boxer", "golden_retriver", "golden_retriver" , "boxer", "golden_retriver" , "boxer", "boxer"};
+
 #if defined(NNSTREAMER_AVAILABLE)
 float featureVector[INPUT_SIZE];
+#endif
+
+#if defined(APP_VALIDATE)
+/** Benchmark output values */
+const float test_output_benchmark[TOTAL_TEST_SIZE] = {
+  0.99669778, 0.96033746, 0.99192446, 0.98053128,
+  0.95911789, 0.99331927, 0.55696899, 0.46636438};
 #endif
 
 /** Container to hold the output values when running */
@@ -230,6 +245,7 @@ void sink_cb(const ml_tensors_data_h data, const ml_tensors_info_h info,
   int max_idx = -1;
   float max_val = 0; // last layer is softmax, so all values will be positive
 
+
   status = ml_tensors_info_get_tensor_dimension(info, 0, dim);
   if (status != ML_ERROR_NONE) {
     std::cerr << "Error while get tensor dimension\n";
@@ -242,16 +258,18 @@ void sink_cb(const ml_tensors_data_h data, const ml_tensors_info_h info,
     return;
 
   for (int i = 0; i < LABEL_SIZE; i++) {
-    if (raw_data[i] > max_val) {
+    if (raw_data[i] > max_val && raw_data[i] > PREDICTION_THRESHOLD) {
       max_val = raw_data[i];
       max_idx = i;
     }
   }
 
   std::cout << "Label for test file test" << test_file_idx << ".bmp = ";
-  if (max_idx >= 0)
+  if (max_idx >= 0) {
     std::cout << label_names[max_idx] << " with softmax value = " << max_val
               << std::endl;
+    results[test_file_idx - 1] = label_names[max_idx];
+  }
   else
     std::cout << "could not be predicted with enough confidence." << std::endl;
 
@@ -279,7 +297,7 @@ int getInputFeature_c(const std::string filename, float *feature_input) {
  * @param[in] data_path Path of the test data
  * @param[in] config Model config file path
  */
-int testModel(const char *data_path, const char *model) {
+int testModel(const char *data_path, const char *model, const int test_file_no) {
 #if defined(NNSTREAMER_AVAILABLE)
   int status = ML_ERROR_NONE;
   int new_status;
@@ -337,42 +355,42 @@ int testModel(const char *data_path, const char *model) {
   if (status != ML_ERROR_NONE)
     goto fail_info_release;
 
-  for (int i = 0; i < TOTAL_TEST_SIZE; i++) {
-    char *test_file_path;
-    status =
-      asprintf(&test_file_path, "%s/testset/test%d.bmp", data_path, i + 1);
-    if (status < 0) {
-      status = -errno;
-      goto fail_info_release;
-    }
 
-    status = getInputFeature_c(test_file_path, featureVector);
-    free(test_file_path);
-    if (status != ML_ERROR_NONE)
-      goto fail_info_release;
-
-    status = ml_tensors_data_create(in_info, &in_data);
-    if (status != ML_ERROR_NONE)
-      goto fail_info_release;
-
-    status = ml_tensors_data_get_tensor_data(in_data, 0, &raw_data, &data_size);
-    if (status != ML_ERROR_NONE) {
-      ml_tensors_data_destroy(&in_data);
-      goto fail_info_release;
-    }
-
-    for (size_t ds = 0; ds < data_size / sizeof(float); ds++)
-      ((float *)raw_data)[ds] = featureVector[ds];
-
-    status = ml_pipeline_src_input_data(src, in_data,
-                                        ML_PIPELINE_BUF_POLICY_AUTO_FREE);
-    if (status != ML_ERROR_NONE) {
-      ml_tensors_data_destroy(&in_data);
-      goto fail_info_release;
-    }
-
-    /** No need to destroy data here, pipeline freed buffer automatically */
+  char *test_file_path;
+  status =
+    asprintf(&test_file_path, "%s/testset/test%d.bmp", data_path, test_file_no);
+  if (status < 0) {
+    status = -errno;
+    goto fail_info_release;
   }
+
+  status = getInputFeature_c(test_file_path, featureVector);
+  free(test_file_path);
+  if (status != ML_ERROR_NONE)
+    goto fail_info_release;
+
+  status = ml_tensors_data_create(in_info, &in_data);
+  if (status != ML_ERROR_NONE)
+    goto fail_info_release;
+
+  status = ml_tensors_data_get_tensor_data(in_data, 0, &raw_data, &data_size);
+  if (status != ML_ERROR_NONE) {
+    ml_tensors_data_destroy(&in_data);
+    goto fail_info_release;
+  }
+
+  for (size_t ds = 0; ds < data_size / sizeof(float); ds++)
+    ((float *)raw_data)[ds] = featureVector[ds];
+
+  status = ml_pipeline_src_input_data(src, in_data,
+                                      ML_PIPELINE_BUF_POLICY_AUTO_FREE);
+  if (status != ML_ERROR_NONE) {
+    ml_tensors_data_destroy(&in_data);
+    goto fail_info_release;
+  }
+
+  /** No need to destroy data here, pipeline freed buffer automatically */
+
 
   /** Sleep for 1 second for all the data to be received by sink callback */
   sleep(1);
@@ -400,6 +418,7 @@ fail_pipe_destroy:
   new_status = ml_pipeline_destroy(pipe);
   if (status == ML_ERROR_NONE && new_status != ML_ERROR_NONE) {
     status = new_status;
+
   }
 
 fail_exit:
@@ -409,6 +428,18 @@ fail_exit:
   return ML_ERROR_NONE;
 #endif
 }
+
+#if defined(APP_VALIDATE)
+/**
+ * @brief  Test to verify that the draw classification app is successful
+ * @note Enable this once caching is enabled for backbones and epochs to 1000
+ */
+TEST(DrawClassification, matchTestResult) {
+  for (int idx = 0; idx < TOTAL_TEST_SIZE; idx++) {
+    // EXPECT_FLOAT_EQ(test_output_benchmark[idx], test_output[idx]);
+  }
+}
+#endif
 
 /**
  * @brief     create NN
@@ -449,9 +480,8 @@ int main(int argc, char *argv[]) {
   /** Load input images */
   try {
     loadAllData(data_path, inputVector, labelVector);
-  } catch (const std::exception &exc) {
+  } catch (...) {
     std::cerr << "Failed loading input images." << std::endl;
-    std::cerr << exc.what();
 #if defined(__TIZEN__)
     set_feature_state(NOT_CHECKED_YET);
 #endif
@@ -475,7 +505,19 @@ int main(int argc, char *argv[]) {
 
   /** Test the trained model */
   try {
-    status = testModel(data_path.c_str(), config.c_str());
+    for (int i = 1; i <= TOTAL_TEST_SIZE; i++) {
+      status = testModel(data_path.c_str(), config.c_str(), i);
+    }
+    int counter = 0;
+    for (int i = 1; i <= TOTAL_TEST_SIZE; i++) {
+      std::cout << "No " << i << "Result: " << results[i-1] << std::endl;
+      std::cout << "Expected result: " << expected_test_results[i-1] << std::endl << std::endl;
+      if(results[i-1] == expected_test_results[i-1]) {
+        counter++;
+      }
+
+    }
+    std::cout << counter << "/" << TOTAL_TEST_SIZE << std::endl;
   } catch (...) {
     std::cerr << "Failed test model\n";
 #if defined(__TIZEN__)
@@ -492,6 +534,20 @@ int main(int argc, char *argv[]) {
   set_feature_state(NOT_CHECKED_YET);
 #endif
 
+#if defined(APP_VALIDATE)
+  try {
+    testing::InitGoogleTest(&argc, argv);
+  } catch (...) {
+    std::cerr << "Error duing InitGoogleTest" << std::endl;
+    return 0;
+  }
+
+  try {
+    status = RUN_ALL_TESTS();
+  } catch (...) {
+    std::cerr << "Error duing RUN_ALL_TSETS()" << std::endl;
+  }
+#endif
 
   // please comment below if you are going to train continuously.
   try {
